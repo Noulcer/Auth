@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>身份认证系统</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <div class="auth-box">
+            <div class="tabs" id="auth-tabs">
+                <button class="tab-btn active" onclick="showTab('login')">
+                    <i class="fas fa-sign-in-alt"></i> 登录
+                </button>
+                <button class="tab-btn" onclick="showTab('register')">
+                    <i class="fas fa-user-plus"></i> 注册
+                </button>
+            </div>
+            
+            <!-- 登录第一步：输入邮箱 -->
+            <div id="login-step1" class="form-container">
+                <div class="form-group">
+                    <input type="email" id="login-email" placeholder="请输入邮箱" required>
+                    <div class="error-message" id="login-email-error"></div>
+                </div>
+                <button onclick="startLoginStep1()">
+                    <i class="fas fa-arrow-right"></i> 下一步
+                </button>
+            </div>
+            
+            <!-- 登录第二步：输入密码 -->
+            <div id="login-step2" class="form-container" style="display: none;">
+                <div class="step-info">
+                    <span id="login-email-display"></span>
+                    <button class="text-button" onclick="backToStep1()">
+                        <i class="fas fa-edit"></i> 修改
+                    </button>
+                </div>
+                <div class="form-group">
+                    <input type="password" id="login-password" placeholder="请输入密码" required>
+                    <div class="error-message" id="login-password-error"></div>
+                </div>
+                <button onclick="completeLogin()">
+                    <i class="fas fa-lock"></i> 安全登录
+                </button>
+            </div>
+            
+            <!-- 注册表单 -->
+            <div id="register-form" class="form-container" style="display: none;">
+                <div class="form-group">
+                    <input type="email" id="register-email" placeholder="请输入邮箱" required>
+                    <div class="error-message" id="register-email-error"></div>
+                </div>
+                <div class="form-group">
+                    <input type="password" id="register-password" placeholder="请设置密码" required>
+                    <div class="error-message" id="register-password-error"></div>
+                    <div class="password-requirements">
+                        <i class="fas fa-shield-alt"></i> 密码要求：
+                        <ul>
+                            <li><i class="fas fa-check-circle"></i> 至少8个字符</li>
+                            <li><i class="fas fa-check-circle"></i> 包含大写和小写字母</li>
+                            <li><i class="fas fa-check-circle"></i> 包含数字</li>
+                            <li><i class="fas fa-check-circle"></i> 包含特殊字符（.@$!%*?&）</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <input type="password" id="register-confirm-password" placeholder="请确认密码" required>
+                    <div class="error-message" id="register-confirm-password-error"></div>
+                </div>
+                <button onclick="register()">
+                    <i class="fas fa-user-plus"></i> 创建账号
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/js/all.min.js"></script>
+    <script src="{{ url_for('static', filename='js/crypto-js.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/jsencrypt.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/auth.js') }}"></script>
+</body>
+</html> 
