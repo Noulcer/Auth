@@ -212,7 +212,7 @@ async function register() {
     }
     
     // 验证密码格式
-    const passwordPattern = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[.@$!%*?&])[A-Za-z\d.@$!%*?&]{8,}$/;
+    const passwordPattern = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[.@$!%*?&])[A-Za-z\d.@$!%*?&]{8,16}$/;
     if (!passwordPattern.test(password)) {
         showError('register-password-error', '密码不符合要求');
         return;

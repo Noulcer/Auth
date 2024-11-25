@@ -3,7 +3,7 @@ import secrets
 import re
 import hashlib
 from Crypto.PublicKey import RSA
-from Crypto.Cipher import PKCS1_OAEP
+from Crypto.Cipher import PKCS1_v1_5
 from datetime import datetime
 
 from flask import current_app
@@ -62,20 +62,19 @@ def generate_rsa_keys():
 def encrypt_rsa(public_key, data):
     """使用RSA公钥加密数据"""
     key = RSA.import_key(public_key)
-    cipher = PKCS1_OAEP.new(key)
+    cipher = PKCS1_v1_5.new(key)
     return cipher.encrypt(data.encode())
 
 def decrypt_rsa(private_key, encrypted_data):
     """使用RSA私钥解密数据"""
-    try:
-        # 如果输入是字符串，假设它是base64编码
-        if isinstance(encrypted_data, str):
-            from base64 import b64decode
-            encrypted_data = b64decode(encrypted_data)
-            
+    print(f"Decoded length: {len(encrypted_data)}")
+    try:            
         key = RSA.import_key(private_key)
-        cipher = PKCS1_OAEP.new(key)
-        decrypted = cipher.decrypt(encrypted_data)
+        cipher = PKCS1_v1_5.new(key)
+        sentinel = None
+        decrypted = cipher.decrypt(encrypted_data, sentinel)
+        if decrypted is None:
+            raise ValueError("解密失败，可能是密文或密钥有问题")
         return decrypted.decode('utf-8')
     except Exception as e:
         current_app.logger.error(f'RSA解密错误: {str(e)}')
