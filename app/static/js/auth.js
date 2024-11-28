@@ -2,6 +2,7 @@ let publicKey = null;
 let currentChallenge = null;
 let currentEmail = null;
 let aesKey = null;
+let currentSalt = null;
 
 // 生成随机AES密钥
 function generateAESKey() {
@@ -58,7 +59,7 @@ async function encryptData(data) {
     }
 }
 
-// 修改发送请求的函数
+// 发送请求的函数
 async function sendEncryptedRequest(url, data) {
     if (!publicKey) {
         await fetchPublicKey();
@@ -79,11 +80,6 @@ async function fetchPublicKey() {
         const response = await fetch('/public-key');
         const data = await response.json();
         publicKey = data.public_key;
-        console.log('公钥', publicKey);
-        const response_private = await fetch('/secret-key');
-        const data_private = await response_private.json();
-        secretKey = data_private.secret_key;
-        console.log('私钥', secretKey);
     } catch (error) {
         console.error('获取公钥失败:', error);
         showError('login-email-error', '服务器连接失败');
@@ -148,15 +144,40 @@ function showTab(tabName) {
     }
 }
 
-// 返回登录第一步
-function backToStep1() {
-    document.getElementById('login-step1').style.display = 'block';
-    document.getElementById('login-step2').style.display = 'none';
-    currentChallenge = null;
+// 返回登录第一步的函数，清除盐值
+function backToStep1(event) {
+    if (event) {
+        event.preventDefault();
+    }
+    
+    const step1Container = document.getElementById('login-step1');
+    const step2Container = document.getElementById('login-step2');
+    
+    if (!step1Container || !step2Container) {
+        console.error('找不到必要的DOM元素');
+        return;
+    }
+    
+    step2Container.style.display = 'none';
+    step2Container.classList.remove('active');
+    
+    step1Container.style.display = 'block';
+    setTimeout(() => {
+        step1Container.classList.add('active');
+    }, 50);
+    
+    document.getElementById('login-password').value = '';
     clearErrors();
+    
+    // 重置所有状态
+    currentChallenge = null;
+    currentEmail = null;
+    currentSalt = null;
+    
+    document.getElementById('login-email').focus();
 }
 
-// 修改登录第一步
+// 登录第一步
 async function startLoginStep1() {
     const email = document.getElementById('login-email').value;
     clearErrors();
@@ -175,19 +196,44 @@ async function startLoginStep1() {
         if (response.ok) {
             currentChallenge = data.challenge;
             currentEmail = email;
-            document.getElementById('login-email-display').textContent = email;
-            document.getElementById('login-step1').style.display = 'none';
-            document.getElementById('login-step2').style.display = 'block';
+            currentSalt = data.salt;  // 保存盐值
+            
+            // 获取表单容器
+            const step1Container = document.getElementById('login-step1');
+            const step2Container = document.getElementById('login-step2');
+            const emailDisplay = document.getElementById('login-email-display');
+            
+            if (!step1Container || !step2Container || !emailDisplay) {
+                console.error('找不到必要的DOM元素');
+                showError('login-email-error', '页面加载错误');
+                return;
+            }
+            
+            // 显示邮箱
+            emailDisplay.textContent = email;
+            
+            // 切换表单
+            step1Container.style.display = 'none';
+            step1Container.classList.remove('active');
+            
+            step2Container.style.display = 'block';
+            setTimeout(() => {
+                step2Container.classList.add('active');
+            }, 50);
+            
+            // 聚焦密码输入框
+            document.getElementById('login-password').focus();
+            
         } else {
-            showError('login-email-error', data.error || '邮箱验证失败');
+            showError('login-email-error', data.message || '邮箱验证失败');
         }
     } catch (error) {
         console.error('登录步骤1失败:', error);
-        showError('login-email-error', '服务器错误');
+        showError('login-email-error', '服务器错误，请稍后重试');
     }
 }
 
-// 修改登录第二步
+// 登录第二步
 async function completeLogin() {
     const password = document.getElementById('login-password').value;
     clearErrors();
@@ -198,7 +244,9 @@ async function completeLogin() {
     }
     
     try {
-        const passwordHash = CryptoJS.SHA256(password).toString();
+        // 使用bcrypt.js的hashSync方法进行同步哈希
+        const passwordHash = dcodeIO.bcrypt.hashSync(password, currentSalt);
+        // 将密码哈希和挑战值拼接后再次哈希
         const response = CryptoJS.SHA256(passwordHash + currentChallenge).toString();
         
         const loginResponse = await sendEncryptedRequest('/login/step2', {
@@ -209,19 +257,40 @@ async function completeLogin() {
         
         const data = await loginResponse.json();
         if (loginResponse.ok) {
-            alert('登录成功！');
+            alert(data.message || '登录成功！');
             document.getElementById('login-password').value = '';
             backToStep1();
         } else {
-            showError('login-password-error', data.error || '密码验证失败');
+            showError('login-password-error', data.message || '密码验证失败');
         }
     } catch (error) {
         console.error('登录失败:', error);
-        showError('login-password-error', '服务器错误');
+        showError('login-password-error', '服务器错误，请稍后重试');
     }
 }
 
-// 注册
+// handleError函数
+function handleError(error) {
+    // 根据错误代码显示对应的错误信息
+    switch(error.code) {
+        case 'INVALID_EMAIL':
+            showError('register-email-error', error.message);
+            break;
+        case 'EMAIL_EXISTS':
+            showError('register-email-error', error.message);
+            break;
+        case 'INVALID_PASSWORD':
+            showError('register-password-error', error.message);
+            break;
+        case 'REGISTRATION_FAILED':
+            showError('register-email-error', error.message);
+            break;
+        default:
+            showError('register-email-error', error.message || '发生未知错误');
+    }
+}
+
+// register函数
 async function register() {
     const email = document.getElementById('register-email').value;
     const password = document.getElementById('register-password').value;
@@ -284,7 +353,7 @@ async function register() {
             // 切换到登录页面
             showTab('login');
         } else {
-            handleError(data.error);
+            handleError(data);  // 传入完整的错误对象
         }
     } catch (error) {
         console.error('注册失败:', error);

@@ -33,7 +33,7 @@
             <div id="login-step2" class="form-container" style="display: none;">
                 <div class="step-info">
                     <span id="login-email-display"></span>
-                    <button class="text-button" onclick="backToStep1()">
+                    <button class="text-button" onclick="backToStep1(event)">
                         <i class="fas fa-edit"></i> 修改
                     </button>
                 </div>
@@ -79,6 +79,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/js/all.min.js"></script>
     <script src="{{ url_for('static', filename='js/crypto-js.min.js') }}"></script>
     <script src="{{ url_for('static', filename='js/jsencrypt.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/bcrypt.min.js') }}"></script>
     <script src="{{ url_for('static', filename='js/auth.js') }}"></script>
 </body>
 </html> 

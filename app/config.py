@@ -3,7 +3,7 @@ from datetime import timedelta
 
 class Config:
     # Flask配置
-    SECRET_KEY = os.environ.get('SECRET_KEY') or 'your-secret-key'
+    JSON_AS_ASCII = False
     
     # 数据库配置 - 使用SQLite
     basedir = os.path.abspath(os.path.dirname(__file__))
@@ -12,7 +12,7 @@ class Config:
     
     # 安全配置
     CHALLENGE_LIFETIME = timedelta(minutes=5)  # 挑战值有效期
-    CHALLENGE_REQUEST_INTERVAL = 1  # 挑战请求间隔（秒）
+    CHALLENGE_REQUEST_INTERVAL = 60  # 挑战请求间隔（秒）
     MAX_LOGIN_ATTEMPTS = 5  # 最大登录尝试次数
     ACCOUNT_LOCKOUT_DURATION = timedelta(minutes=30)  # 账号锁定时间
     
