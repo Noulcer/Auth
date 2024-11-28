@@ -4,29 +4,36 @@ from app.models import User
 from app.utils import (validate_email, validate_password, generate_salt, 
                       hash_password, create_challenge, verify_challenge_response,
                       log_login_attempt, check_account_lockout, update_login_attempts,
-                      encrypt_rsa, decrypt_rsa)
+                      encrypt_rsa, decrypt_rsa, decrypt_aes)
 from functools import wraps
 
 auth_bp = Blueprint('auth', __name__)
 
-def require_rsa_encryption(f):
-    """确保请求数据使用RSA加密"""
+def require_encryption(f):
+    """确保请求数据使用混合加密"""
     @wraps(f)
     def decorated_function(*args, **kwargs):
         try:
-            encrypted_data = request.get_json().get('encrypted_data')
-            if not encrypted_data:
+            data = request.get_json()
+            if not all(k in data for k in ('key', 'data')):
                 return jsonify({'error': '需要加密数据'}), 400
                 
-            # 使用私钥解密数据
             try:
-                decrypted_data = decrypt_rsa(
+                # 使用RSA解密AES密钥
+                aes_key = decrypt_rsa(
                     current_app.config['PRIVATE_KEY'],
-                    encrypted_data
+                    data['key']
                 )
+                
+                # 使用AES解密数据
+                decrypted_data = decrypt_aes(
+                    aes_key,
+                    data['data']
+                )
+                
                 return f(decrypted_data, *args, **kwargs)
             except Exception as e:
-                current_app.logger.error(f'RSA解密失败: {str(e)}')
+                current_app.logger.error(f'解密失败: {str(e)}')
                 return jsonify({'error': '数据解密失败'}), 400
         except Exception as e:
             current_app.logger.error(f'请求处理失败: {str(e)}')
@@ -34,7 +41,7 @@ def require_rsa_encryption(f):
     return decorated_function
 
 @auth_bp.route('/register', methods=['POST'])
-@require_rsa_encryption
+@require_encryption
 def register(decrypted_data):
     """注册新用户"""
     try:
@@ -84,7 +91,7 @@ def register(decrypted_data):
         return jsonify({'error': f'注册失败: {str(e)}'}), 500
 
 @auth_bp.route('/login/step1', methods=['POST'])
-@require_rsa_encryption
+@require_encryption
 def login_step1(decrypted_data):
     """登录第一步：发送邮箱并获取挑战值"""
     try:
@@ -115,7 +122,7 @@ def login_step1(decrypted_data):
         return jsonify({'error': '服务器错误'}), 500
 
 @auth_bp.route('/login/step2', methods=['POST'])
-@require_rsa_encryption
+@require_encryption
 def login_step2(decrypted_data):
     """登录第二步：验证响应值"""
     try:
@@ -151,6 +158,11 @@ def login_step2(decrypted_data):
 def get_public_key():
     """获取RSA公钥"""
     return jsonify({'public_key': current_app.config['PUBLIC_KEY'].decode()})
+
+@auth_bp.route('/secret-key', methods=['GET'])
+def get_secret_key():
+    """获取RSA私钥"""
+    return jsonify({'secret_key': current_app.config['PRIVATE_KEY'].decode()})
 
 @auth_bp.route('/')
 def index():

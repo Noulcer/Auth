@@ -1,6 +1,77 @@
 let publicKey = null;
 let currentChallenge = null;
 let currentEmail = null;
+let aesKey = null;
+
+// 生成随机AES密钥
+function generateAESKey() {
+    return CryptoJS.lib.WordArray.random(16);
+}
+
+// AES加密
+function encryptAES(data, key) {
+    try {
+        // 使用AES-ECB模式加密
+        const encrypted = CryptoJS.AES.encrypt(
+            data,
+            key,
+            {
+                mode: CryptoJS.mode.ECB,
+                padding: CryptoJS.pad.Pkcs7
+            }
+        );
+        
+        return encrypted.ciphertext.toString(CryptoJS.enc.Base64); // 密文本身为字节数据，应当编码返回
+    } catch (error) {
+        console.error('AES加密失败:', error);
+        throw error;
+    }
+}
+
+// RSA加密AES密钥
+function encryptKey(key) {
+    const encrypt = new JSEncrypt();
+    encrypt.setPublicKey(publicKey);
+    return encrypt.encrypt(key);
+}
+
+// 加密数据
+async function encryptData(data) {
+    try {
+        // 生成AES密钥和IV
+        if (!aesKey) {
+            aesKey = generateAESKey();
+        }
+        // 使用AES加密数据
+        const encryptedData = encryptAES(JSON.stringify(data), aesKey);
+        
+        // 使用RSA加密AES密钥
+        const encryptedKey = encryptKey(aesKey.toString());
+        
+        return {
+            key: encryptedKey,
+            data: encryptedData
+        };
+    } catch (error) {
+        console.error('加密错误:', error);
+        throw error;
+    }
+}
+
+// 修改发送请求的函数
+async function sendEncryptedRequest(url, data) {
+    if (!publicKey) {
+        await fetchPublicKey();
+    }
+    const encrypted = await encryptData(data);
+    return fetch(url, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(encrypted)
+    });
+}
 
 // 获取公钥
 async function fetchPublicKey() {
@@ -8,26 +79,14 @@ async function fetchPublicKey() {
         const response = await fetch('/public-key');
         const data = await response.json();
         publicKey = data.public_key;
+        console.log('公钥', publicKey);
+        const response_private = await fetch('/secret-key');
+        const data_private = await response_private.json();
+        secretKey = data_private.secret_key;
+        console.log('私钥', secretKey);
     } catch (error) {
         console.error('获取公钥失败:', error);
         showError('login-email-error', '服务器连接失败');
-    }
-}
-
-// RSA加密
-function encryptData(data) {
-    try {
-        const encrypt = new JSEncrypt();
-        encrypt.setPublicKey(publicKey);
-        const jsonStr = JSON.stringify(data);
-        const encrypted = encrypt.encrypt(jsonStr);
-        if (!encrypted) {
-            throw new Error('加密失败');
-        }
-        return encrypted;
-    } catch (error) {
-        console.error('加密错误:', error);
-        throw error;
     }
 }
 
@@ -97,7 +156,7 @@ function backToStep1() {
     clearErrors();
 }
 
-// 登录第一步：发送邮箱获取挑战值
+// 修改登录第一步
 async function startLoginStep1() {
     const email = document.getElementById('login-email').value;
     clearErrors();
@@ -107,20 +166,9 @@ async function startLoginStep1() {
         return;
     }
     
-    if (!publicKey) {
-        await fetchPublicKey();
-    }
-    
     try {
-        const encryptedEmail = encryptData({ email: email });
-        const response = await fetch('/login/step1', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                encrypted_data: encryptedEmail
-            })
+        const response = await sendEncryptedRequest('/login/step1', {
+            email: email
         });
         
         const data = await response.json();
@@ -139,7 +187,7 @@ async function startLoginStep1() {
     }
 }
 
-// 完成登录
+// 修改登录第二步
 async function completeLogin() {
     const password = document.getElementById('login-password').value;
     clearErrors();
@@ -153,28 +201,16 @@ async function completeLogin() {
         const passwordHash = CryptoJS.SHA256(password).toString();
         const response = CryptoJS.SHA256(passwordHash + currentChallenge).toString();
         
-        const encryptedData = encryptData({
+        const loginResponse = await sendEncryptedRequest('/login/step2', {
             email: currentEmail,
             challenge: currentChallenge,
             response: response
         });
         
-        const loginResponse = await fetch('/login/step2', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                encrypted_data: encryptedData
-            })
-        });
-        
         const data = await loginResponse.json();
         if (loginResponse.ok) {
             alert('登录成功！');
-            // 清空表单
             document.getElementById('login-password').value = '';
-            // 返回第一步
             backToStep1();
         } else {
             showError('login-password-error', data.error || '密码验证失败');
@@ -231,25 +267,13 @@ async function register() {
     if (!publicKey) {
         await fetchPublicKey();
     }
-    console.log('当前公钥:', publicKey);
 
     try {
-        const encryptedData = encryptData({
+        const response = await sendEncryptedRequest('/register', {
             email: email,
             password: password
         });
         
-        const response = await fetch('/register', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                encrypted_data: encryptedData
-            })
-        });
-        console.log('收到响应:', response);
-
         const data = await response.json();
         if (response.ok) {
             alert('注册成功！');
@@ -260,14 +284,7 @@ async function register() {
             // 切换到登录页面
             showTab('login');
         } else {
-            // 根据后端返回的错误类型显示对应的错误信息
-            if (data.error.includes('邮箱')) {
-                showError('register-email-error', data.error);
-            } else if (data.error.includes('密码')) {
-                showError('register-password-error', data.error);
-            } else {
-                showError('register-email-error', data.error);
-            }
+            handleError(data.error);
         }
     } catch (error) {
         console.error('注册失败:', error);

@@ -17,7 +17,7 @@ class Config:
     ACCOUNT_LOCKOUT_DURATION = timedelta(minutes=30)  # 账号锁定时间
     
     # RSA密钥配置
-    RSA_KEY_SIZE = 4096
+    RSA_KEY_SIZE = 2048
     
     # 密码策略
     PASSWORD_PATTERN = r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[.@$!%*?&])[A-Za-z\d.@$!%*?&]{8,16}$'

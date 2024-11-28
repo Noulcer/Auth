@@ -2,8 +2,12 @@ import bcrypt
 import secrets
 import re
 import hashlib
+import base64
 from Crypto.PublicKey import RSA
-from Crypto.Cipher import PKCS1_v1_5
+from Crypto.Cipher import PKCS1_v1_5, AES
+from Crypto.Random import get_random_bytes
+from Crypto.Util.Padding import pad, unpad
+from base64 import b64encode, b64decode
 from datetime import datetime
 
 from flask import current_app
@@ -41,7 +45,7 @@ def create_challenge(email):
         used=False
     ).order_by(Challenge.created_at.desc()).first()
     
-    if last_challenge and (datetime.utcnow() - last_challenge.created_at).total_seconds() < Config.CHALLENGE_REQUEST_INTERVAL:
+    if last_challenge and (datetime() - last_challenge.created_at).total_seconds() < Config.CHALLENGE_REQUEST_INTERVAL:
         return None
         
     challenge = Challenge(
@@ -59,23 +63,46 @@ def generate_rsa_keys():
     public_key = key.publickey().export_key()
     return private_key, public_key
 
+def generate_aes_key():
+    """生成AES密钥"""
+    return get_random_bytes(32)  # 256位密钥
+
+def encrypt_aes(key, data):
+    """使用AES加密数据"""
+    cipher = AES.new(key, AES.MODE_CBC)
+    ct_bytes = cipher.encrypt(pad(data.encode(), AES.block_size))
+    iv = b64encode(cipher.iv).decode('utf-8')
+    ct = b64encode(ct_bytes).decode('utf-8')
+    return {'iv': iv, 'ciphertext': ct}
+
+def decrypt_aes(key, ciphertext_base64):
+    """使用AES解密数据"""
+    try:
+        aes_key = bytes.fromhex(key.decode('utf-8')) # key为字节串形式，需要先转为普通字符串，然后解析为字节数据
+        ciphertext = base64.b64decode(ciphertext_base64) # 密文为进行base64编码的字节数据，应当解码为字节数据
+        print("ciphertext:", ciphertext)
+        cipher = AES.new(aes_key, AES.MODE_ECB) 
+        pt = unpad(cipher.decrypt(ciphertext), AES.block_size) # 解密过程中，密文应当是字节数据
+        return pt.decode('utf-8')
+    except (ValueError, KeyError) as e:
+        current_app.logger.error(f'AES解密错误: {str(e)}')
+        raise
+
 def encrypt_rsa(public_key, data):
-    """使用RSA公钥加密数据"""
+    """使用RSA加密数据（用于加密AES密钥）"""
     key = RSA.import_key(public_key)
     cipher = PKCS1_v1_5.new(key)
-    return cipher.encrypt(data.encode())
+    return cipher.encrypt(data).decode('utf-8')
 
 def decrypt_rsa(private_key, encrypted_data):
-    """使用RSA私钥解密数据"""
-    print(f"Decoded length: {len(encrypted_data)}")
-    try:            
+    """使用RSA解密数据（用于解密AES密钥）"""
+    try:
         key = RSA.import_key(private_key)
         cipher = PKCS1_v1_5.new(key)
-        sentinel = None
-        decrypted = cipher.decrypt(encrypted_data, sentinel)
-        if decrypted is None:
-            raise ValueError("解密失败，可能是密文或密钥有问题")
-        return decrypted.decode('utf-8')
+        print("encrypted_date:", encrypted_data)
+        data = cipher.decrypt(b64decode(encrypted_data), None)
+        print("解密数据：", data)
+        return data
     except Exception as e:
         current_app.logger.error(f'RSA解密错误: {str(e)}')
         raise
