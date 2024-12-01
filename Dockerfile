@@ -17,4 +17,4 @@ RUN mkdir -p logs
 EXPOSE 5000
 
 # 启动命令
-CMD ["flask", "run"] 
+CMD ["flask", "run", "--host=0.0.0.0"] 
