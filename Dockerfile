@@ -16,5 +16,3 @@ RUN mkdir -p logs
 # 暴露端口
 EXPOSE 5000
 
-# 启动命令
-CMD ["flask", "run", "--host=0.0.0.0"] 
